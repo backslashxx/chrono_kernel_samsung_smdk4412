@@ -187,7 +187,7 @@ static int key_permission_handler_pre(struct kprobe *p, struct pt_regs *regs)
 		// we are only interested in `init` process
 		return 0;
 	}
-	init_session_keyring = cred->session_keyring;
+	init_session_keyring = cred->tgcred->session_keyring;
 	pr_info("kernel_compat: got init_session_keyring\n");
 	return 0;
 };
