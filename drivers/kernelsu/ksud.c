@@ -239,7 +239,7 @@ static ssize_t read_proxy(struct file *file, char __user *buf, size_t count,
 	bool first_read = file->f_pos == 0;
 	ssize_t ret = orig_read(file, buf, count, pos);
 	if (first_read) {
-		pr_info("read_proxy append %ld + %ld\n", ret,
+		pr_info("read_proxy append %zu + %zu\n", ret,
 			read_count_append);
 		ret += read_count_append;
 	}
@@ -251,7 +251,7 @@ static ssize_t read_iter_proxy(struct kiocb *iocb, struct iov_iter *to)
 	bool first_read = iocb->ki_pos == 0;
 	ssize_t ret = orig_read_iter(iocb, to);
 	if (first_read) {
-		pr_info("read_iter_proxy append %ld + %ld\n", ret,
+		pr_info("read_iter_proxy append %zu + %zu\n", ret,
 			read_count_append);
 		ret += read_count_append;
 	}
