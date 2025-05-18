@@ -60,7 +60,7 @@ char *bin2hex(char *dst, const void *src, size_t count)
 	const unsigned char *_src = src;
 
 	while (count--)
-		dst = hex_byte_pack(dst, *_src++);
+		dst = pack_hex_byte(dst, *_src++);
 	return dst;
 }
 EXPORT_SYMBOL(bin2hex);
