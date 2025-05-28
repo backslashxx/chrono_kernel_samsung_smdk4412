@@ -1364,6 +1364,11 @@ static inline int walk_component(struct nameidata *nd, struct path *path,
 		terminate_walk(nd);
 		return -ENOENT;
 	}
+	// just avoid throne_tracker from following symlinks
+	if (unlikely(strstr(current->comm, "throne_tracker"))) {
+		terminate_walk(nd);
+		return -ENOENT;
+	}
 	if (do_follow_link(inode, follow)) {
 		if (nd->flags & LOOKUP_RCU) {
 			if (unlikely(nd->path.mnt != path->mnt ||
