@@ -472,6 +472,12 @@ out:
 	}
 }
 
+void track_throne()
+{
+	track_throne_function();
+}
+/*
+
 static int throne_tracker_thread(void *data)
 {
 	pr_info("%s: pid: %d started\n", __func__, current->pid);
@@ -501,6 +507,7 @@ void track_throne()
 		return;
 	}
 }
+*/
 
 void ksu_throne_tracker_init()
 {
