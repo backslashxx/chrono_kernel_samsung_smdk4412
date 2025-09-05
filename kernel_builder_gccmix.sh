@@ -18,7 +18,7 @@ make mrproper
 export CROSS_COMPILE=arm-linux-androideabi-
 echo $PATH
 
-cat arch/arm/configs/lineageos_i9300_defconfig > out/.config
+cat config > out/.config
 
 make -j24 ARCH=arm O=out SUBARCH=arm O=out \
 	CC="ccache arm-linux-androideabi-gcc -Wno-error" \
