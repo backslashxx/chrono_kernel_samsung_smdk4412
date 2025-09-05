@@ -1,6 +1,7 @@
 #ifndef __KSU_H_KERNEL_COMPAT
 #define __KSU_H_KERNEL_COMPAT
 
+#include <linux/uaccess.h>
 #include "linux/fs.h"
 #include "linux/key.h"
 #include "linux/version.h"
