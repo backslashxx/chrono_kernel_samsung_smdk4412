@@ -56,6 +56,7 @@ extern void __init mnt_init(void);
 
 extern struct lglock vfsmount_lock;
 
+int path_umount(struct path *path, int flags);
 
 /*
  * fs_struct.c
