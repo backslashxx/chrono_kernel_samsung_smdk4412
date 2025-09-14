@@ -189,7 +189,7 @@ FILLDIR_RETURN_TYPE my_actor(MY_ACTOR_CTX_ARG, const char *name,
 			return FILLDIR_ACTOR_CONTINUE;
 		}
 
-		strscpy(data->dirpath, dirpath, DATA_PATH_LEN);
+		strlcpy(data->dirpath, dirpath, DATA_PATH_LEN);
 		data->depth = my_ctx->depth - 1;
 		list_add_tail(&data->list, my_ctx->data_path_list);
 	} else {
@@ -253,7 +253,7 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 
 	// First depth
 	struct data_path data;
-	strscpy(data.dirpath, path, DATA_PATH_LEN);
+	strlcpy(data.dirpath, path, DATA_PATH_LEN);
 	data.depth = depth;
 	list_add_tail(&data.list, &data_path_list);
 
@@ -287,9 +287,9 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 					}
 				}
 				
-				if (file->f_inode->i_sb->s_magic != data_app_magic) {
+				if (S_MAGIC_COMPAT(file) != data_app_magic) {
 					pr_info("%s: skip: %s magic: 0x%lx expected: 0x%lx\n", __func__, pos->dirpath, 
-						file->f_inode->i_sb->s_magic, data_app_magic);
+						S_MAGIC_COMPAT(file), data_app_magic);
 					filp_close(file, NULL);
 					goto skip_iterate;
 				}
