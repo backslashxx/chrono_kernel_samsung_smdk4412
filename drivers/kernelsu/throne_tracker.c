@@ -184,6 +184,8 @@ FILLDIR_RETURN_TYPE user_de_actor(MY_ACTOR_CTX_ARG, const char *name,
     if (strncmp(name, ".", namelen) == 0 || strncmp(name, "..", namelen) == 0)
         return FILLDIR_ACTOR_CONTINUE;
 
+	if (namelen == 0)
+		return FILLDIR_ACTOR_CONTINUE;
     uid_t uid = 0;
     int i = 0;
     do {
@@ -386,6 +388,9 @@ int scan_user_data_for_uids(struct list_head *uid_list)
 		return -ENOENT;
 	}
 
+	if (active_users == 0)
+		return 0;
+
 	// Scan each user's data directory
 	size_t i = 0;
 	do {
@@ -404,7 +409,7 @@ int scan_user_data_for_uids(struct list_head *uid_list)
 		total_packages += packages_found;
 		total_errors += errors_count;
 		i++;
-	} (while i < active_users);
+	} while (i < active_users);
 
 	if (total_errors > 0) {
 		pr_warn("UserDE UID: Encountered %zu errors while scanning user data directories\n", 
