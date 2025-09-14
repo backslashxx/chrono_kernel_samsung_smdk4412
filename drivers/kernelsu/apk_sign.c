@@ -193,10 +193,11 @@ static __always_inline bool check_v2_signature(char *path,
 		return false;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) 
-	if (inode_is_locked(kpath.dentry->d_inode)) {
+	if (inode_is_locked(kpath.dentry->d_inode))
 #else
-	if (mutex_is_locked(&kpath.dentry->d_inode->i_mutex)) {	
+	if (mutex_is_locked(&kpath.dentry->d_inode->i_mutex))
 #endif
+	{
 		pr_info("%s: inode is locked for %s\n", __func__, path);
 		path_put(&kpath);
 		return false;

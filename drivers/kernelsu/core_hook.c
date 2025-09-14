@@ -133,11 +133,11 @@ static void disable_seccomp()
 #endif
 }
 
-void escape_to_root(void)
+void escape_to_root(bool do_check_first)
 {
 	struct cred *cred;
 
-	if (current_euid().val == 0) {
+	if (do_check_first && current_euid().val == 0) {
 		pr_warn("Already root, don't escape!\n");
 		return;
 	}
@@ -355,7 +355,7 @@ LSM_HANDLER_TYPE ksu_handle_prctl(int option, unsigned long arg2, unsigned long 
 	if (arg2 == CMD_GRANT_ROOT) {
 		if (is_allow_su()) {
 			pr_info("allow root for: %d\n", current_uid().val);
-			escape_to_root();
+			escape_to_root(true);
 			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
 				pr_err("grant_root: prctl reply error\n");
 			}
@@ -627,7 +627,7 @@ static void try_umount(const char *mnt, int flags)
 
 LSM_HANDLER_TYPE ksu_handle_setuid(struct cred *new, const struct cred *old)
 {
-	struct mount_entry *entry, *tmp;
+	struct mount_entry *entry;
 
 	// this hook is used for umounting overlayfs for some uid, if there isn't any module mounted, just ignore it!
 	if (!ksu_module_mounted) {
@@ -697,7 +697,7 @@ do_umount:
 
 	// don't free! keep on heap! this is used on subsequent setuid calls
 	// if this is freed, we dont have anything to umount next
-	list_for_each_entry_safe(entry, tmp, &mount_list, list)
+	list_for_each_entry(entry, &mount_list, list)
 		try_umount(entry->umountable, MNT_DETACH);
 
 	return 0;

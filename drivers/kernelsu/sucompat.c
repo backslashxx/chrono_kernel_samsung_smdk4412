@@ -23,8 +23,6 @@
 #define SU_PATH "/system/bin/su"
 #define SH_PATH "/system/bin/sh"
 
-extern void escape_to_root();
-
 static bool ksu_sucompat_non_kp __read_mostly = true;
 
 static void __user *userspace_stack_buffer(const void *d, size_t len)
@@ -85,7 +83,7 @@ static int ksu_sucompat_user_common(const char __user **filename_user,
 	if (escalate) {
 		pr_info("%s su found\n", syscall_name);
 		*filename_user = ksud_user_path();
-		escape_to_root(); // escalate !!
+		escape_to_root(true); // escalate !!
 	} else {
 		pr_info("%s su->sh!\n", syscall_name);
 		*filename_user = sh_user_path();
@@ -145,11 +143,12 @@ static int ksu_sucompat_kernel_common(void *filename_ptr, const char *function_n
 	if (escalate) {
 		pr_info("%s su found\n", function_name);
 		memcpy(filename_ptr, KSUD_PATH, sizeof(KSUD_PATH));
-		escape_to_root();
+		escape_to_root(true);
 	} else {
 		pr_info("%s su->sh\n", function_name);
 		memcpy(filename_ptr, SH_PATH, sizeof(SH_PATH));
 	}
+
 	return 0;
 }
 
@@ -225,7 +224,7 @@ int __ksu_handle_devpts(struct inode *inode)
 	if (likely(!ksu_is_allow_uid(uid)))
 		return 0;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) || defined(KSU_HAS_SELINUX_INODE)
 	struct inode_security_struct *sec = selinux_inode(inode);
 #else
 	struct inode_security_struct *sec = (struct inode_security_struct *)inode->i_security;
