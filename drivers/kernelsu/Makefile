@@ -11,10 +11,17 @@ kernelsu-objs += selinux/selinux.o
 kernelsu-objs += selinux/sepolicy.o
 kernelsu-objs += selinux/rules.o
 
-ifeq ($(CONFIG_KSU_THRONE_TRACKER_LEGACY),y)
-	kernelsu-objs += throne_tracker_legacy.o
+
+
+# luckily, it was like 3.19 that has that filldir_t
+# dont have to grab kernel minor, its not like anyone uses 3.19 for shit
+KERNEL_MAJOR := $(VERSION)
+ifeq ($(shell [ $(KERNEL_MAJOR) -lt 2 ] && echo $$?),0)
+$(info -- KernelSU/compat: detected Linux < 4.0: using legacy throne tracker)
+kernelsu-objs += throne_tracker_legacy.o
 else
-	kernelsu-objs += throne_tracker.o
+$(info -- KernelSU/compat: detected Linux >= 4.0: using new throne tracker)
+kernelsu-objs += throne_tracker.o
 endif
 
 ccflags-y += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
