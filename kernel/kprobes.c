@@ -48,6 +48,7 @@
 #include <linux/ftrace.h>
 #include <linux/cpu.h>
 #include <linux/jump_label.h>
+#include <linux/vmalloc.h>
 
 #include <asm-generic/sections.h>
 #include <asm/cacheflush.h>
@@ -185,7 +186,11 @@ static kprobe_opcode_t __kprobes *__get_insn_slot(struct kprobe_insn_cache *c)
 	 * kernel image and loaded module images reside. This is required
 	 * so x86_64 can correctly handle the %rip-relative fixups.
 	 */
+#ifdef CONFIG_MODULES
 	kip->insns = module_alloc(PAGE_SIZE);
+#else
+	kip->insns = vmalloc(PAGE_SIZE);
+#endif
 	if (!kip->insns) {
 		kfree(kip);
 		return NULL;
@@ -225,7 +230,11 @@ static int __kprobes collect_one_slot(struct kprobe_insn_page *kip, int idx)
 		 */
 		if (!list_is_singular(&kip->list)) {
 			list_del(&kip->list);
+#ifdef CONFIG_MODULES
 			module_free(NULL, kip->insns);
+#else
+			vfree(kip->insns);
+#endif
 			kfree(kip);
 		}
 		return 1;
@@ -1330,6 +1339,7 @@ int __kprobes register_kprobe(struct kprobe *p)
 	/* User can pass only KPROBE_FLAG_DISABLED to register_kprobe */
 	p->flags &= KPROBE_FLAG_DISABLED;
 
+#ifdef CONFIG_MODULES
 	/*
 	 * Check if are we probing a module.
 	 */
@@ -1352,6 +1362,9 @@ int __kprobes register_kprobe(struct kprobe *p)
 			goto fail_with_jump_label;
 		}
 	}
+#else
+	probed_mod = NULL;
+#endif
 	preempt_enable();
 	jump_label_unlock();
 
@@ -1892,6 +1905,7 @@ void __kprobes dump_kprobe(struct kprobe *kp)
 	       kp->symbol_name, kp->addr, kp->offset);
 }
 
+#ifdef CONFIG_MODULES
 /* Module notifier call back, checking kprobes on the module */
 static int __kprobes kprobes_module_callback(struct notifier_block *nb,
 					     unsigned long val, void *data)
@@ -1935,6 +1949,7 @@ static struct notifier_block kprobe_module_nb = {
 	.notifier_call = kprobes_module_callback,
 	.priority = 0
 };
+#endif
 
 static int __init init_kprobes(void)
 {
@@ -2001,8 +2016,10 @@ static int __init init_kprobes(void)
 	err = arch_init_kprobes();
 	if (!err)
 		err = register_die_notifier(&kprobe_exceptions_nb);
+#ifdef CONFIG_MODULES
 	if (!err)
 		err = register_module_notifier(&kprobe_module_nb);
+#endif
 
 	kprobes_initialized = (err == 0);
 
