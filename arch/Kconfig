@@ -32,7 +32,6 @@ config HAVE_OPROFILE
 
 config KPROBES
 	bool "Kprobes"
-	depends on MODULES
 	depends on HAVE_KPROBES
 	select KALLSYMS
 	help
