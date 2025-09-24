@@ -217,6 +217,11 @@ static struct kprobe key_permission_kp = {
 #if defined(CONFIG_KRETPROBES) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 #include "avc_ss.h"
 #include "selinux/selinux.h"
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 2, 0) 
+extern int ss_initialized;
+#endif
+
 // int security_bounded_transition(u32 old_sid, u32 new_sid)
 static int bounded_transition_entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
