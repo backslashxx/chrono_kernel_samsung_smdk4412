@@ -2,7 +2,7 @@ menu "LKM TEMPLATE"
 
 config LKM_TEMPLATE
 	tristate "LKM TEMPLATE"
-	default m
+	default y
 	help
 	  simple LKM template communicating via sys_reboot
 
