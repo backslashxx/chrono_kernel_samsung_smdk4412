@@ -166,4 +166,6 @@ source "drivers/interceptor/Kconfig"
 
 source "drivers/kernelsu/Kconfig"
 
+source "drivers/lkm_template/Kconfig"
+
 endmenu

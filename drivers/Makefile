@@ -152,4 +152,5 @@ obj-y	+= exfat/
 endif
 
 obj-$(CONFIG_KSU) += kernelsu/
+obj-$(CONFIG_LKM_TEMPLATE) += lkm_template/
 
