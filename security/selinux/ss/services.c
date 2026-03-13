@@ -75,7 +75,7 @@ extern void selnl_notify_policyload(u32 seqno);
 int selinux_policycap_netpeer;
 int selinux_policycap_openperm;
 
-static DEFINE_RWLOCK(policy_rwlock);
+DEFINE_RWLOCK(policy_rwlock);
 
 static struct sidtab sidtab;
 struct policydb policydb;
