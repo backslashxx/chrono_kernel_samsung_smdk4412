@@ -2,6 +2,10 @@
 #error "only meant for ARM"
 #endif
 
+#ifndef CONFIG_KALLSYMS_ALL
+#error "CONFIG_KALLSYMS_ALL required for ul sctable hook!"
+#endif
+
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
 #include <asm/ptrace.h>
@@ -22,10 +26,11 @@ asmlinkage long hook_armeabi_reboot(int magic1, int magic2, unsigned int cmd, vo
 	return armeabi_reboot(magic1, magic2, cmd, arg);
 }
 
-
+// only used as storage!
 asmlinkage long (*armeabi_execve)(const char __user *filenamei,
 			  const char __user *const __user *argv,
 			  const char __user *const __user *envp, struct pt_regs *regs) __read_mostly = NULL;
+
 __attribute__((used))
 asmlinkage long hook_armeabi_execve(const char __user *filenamei,
 			  const char __user *const __user *argv,
@@ -43,12 +48,12 @@ asmlinkage long hook_armeabi_execve(const char __user *filenamei,
  * ENDPROC(sys_execve_wrapper)
  *
  */
-#define S_OFF 8
+#define S_OFF "8:
 __attribute__((used, naked))
 static noinline void ksu_sys_execve_wrapper()
 {
 	asm volatile(
-		"add r3, sp, #8\n"
+		"add r3, sp, #" S_OFF "\n"
 		"b   hook_armeabi_execve\n"
 	);
 }
@@ -83,18 +88,20 @@ asmlinkage long hook_armeabi_read(unsigned int fd, char __user *buf, size_t coun
 	return armeabi_read(fd, buf, count);
 }
 
-static void patch_sctable()
+// TODO
+static void syscall_table_sucompat_enable() { }
+static void syscall_table_sucompat_disable() { } 
+
+static int patch_sctable_stop_machine(void *data)
 {
 	void **sys_call_table = (void **)kallsyms_lookup_name("sys_call_table");
 	void **sctable = (void **)sys_call_table;
 
-	void *sys_execve_wrapper = (void *)kallsyms_lookup_name("sys_execve_wrapper");
-
 	*(void **)&armeabi_reboot = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]);
 
-	pr_info("wrapper: 0x%lx sct: 0x%lx \n", (uintptr_t)sys_execve_wrapper, (uintptr_t)*(void **)&sctable[__ARMEABI_execve]);
-
-	*(void **)&armeabi_execve = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
+	// void *sys_execve_wrapper = (void *)kallsyms_lookup_name("sys_execve_wrapper");
+	// pr_info("wrapper: 0x%lx sct: 0x%lx \n", (uintptr_t)sys_execve_wrapper, (uintptr_t)*(void **)&sctable[__ARMEABI_execve]);
+	// *(void **)&armeabi_execve = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
 
 	*(void **)&armeabi_faccessat = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]);
 
@@ -102,8 +109,9 @@ static void patch_sctable()
 
 	*(void **)&armeabi_fstat64 = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstat64]);
 
-	preempt_disable();
+	*(void **)&armeabi_read = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_read]);
 
+	// write our hooks!
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]) = hook_armeabi_reboot;
 
 	// NOTE: this is on a wrapper!
@@ -116,6 +124,34 @@ static void patch_sctable()
 	// TODO: handle oabi /eabi shift
 	// FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstat64]) = hook_armeabi_fstat64_ret;
 
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_read]) = hook_armeabi_read;
+
+	flush_cache_all(); // this is important!
+	smp_mb();
+
+	return 0;
+}
+
+static int ksu_syscall_table_restore()
+{
+	set_user_nice(current, 19); // low prio
+
+loop_start:
+
+	msleep(1000);
+
+	if (*(volatile bool *)&ksu_vfs_read_hook)
+		goto loop_start;
+
+	void **sys_call_table = (void **)kallsyms_lookup_name("sys_call_table");
+
+	if (!hook_armeabi_read)
+		return 0;
+
+	pr_info("%s: restore read syscall! \n", __func__);
+
+	preempt_disable();
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_read]) = armeabi_read;
 	preempt_enable();
 
 	flush_cache_all(); // this is important!
@@ -126,8 +162,8 @@ static void patch_sctable()
 
 static __init int ksu_syscall_table_hook_init()
 {
-	patch_sctable();
-
+	stop_machine(patch_sctable_stop_machine, NULL, NULL);
+	kthread_run(ksu_syscall_table_restore, NULL, "unhook");
 	return 0;
 }
 arch_initcall(ksu_syscall_table_hook_init);
