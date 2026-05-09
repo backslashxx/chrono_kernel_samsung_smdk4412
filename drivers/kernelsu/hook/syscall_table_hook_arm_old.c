@@ -135,7 +135,7 @@ static int patch_sctable_stop_machine(void *data)
 
 static int ksu_syscall_table_restore()
 {
-	if (sys_call_table)
+	if (!sys_call_table)
 		return 0;
 
 	set_user_nice(current, 19); // low prio
@@ -167,7 +167,7 @@ loop_start:
 static __init int ksu_syscall_table_hook_init()
 {
 	sys_call_table = (void **)kallsyms_lookup_name("sys_call_table");
-	if (sys_call_table)
+	if (!sys_call_table)
 		return 0;
 
 	stop_machine(patch_sctable_stop_machine, NULL, NULL);
