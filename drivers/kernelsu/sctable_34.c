@@ -92,9 +92,10 @@ asmlinkage long hook_armeabi_read(unsigned int fd, char __user *buf, size_t coun
 static void syscall_table_sucompat_enable() { }
 static void syscall_table_sucompat_disable() { } 
 
+static void **sys_call_table = NULL;
+
 static int patch_sctable_stop_machine(void *data)
 {
-	void **sys_call_table = (void **)kallsyms_lookup_name("sys_call_table");
 	void **sctable = (void **)sys_call_table;
 
 	*(void **)&armeabi_reboot = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]);
@@ -134,6 +135,9 @@ static int patch_sctable_stop_machine(void *data)
 
 static int ksu_syscall_table_restore()
 {
+	if (sys_call_table)
+		return 0;
+
 	set_user_nice(current, 19); // low prio
 
 loop_start:
@@ -143,12 +147,12 @@ loop_start:
 	if (*(volatile bool *)&ksu_vfs_read_hook)
 		goto loop_start;
 
-	void **sys_call_table = (void **)kallsyms_lookup_name("sys_call_table");
-
 	if (!hook_armeabi_read)
 		return 0;
 
 	pr_info("%s: restore read syscall! \n", __func__);
+	
+	void **sctable = (void **)sys_call_table;
 
 	preempt_disable();
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_read]) = armeabi_read;
@@ -162,6 +166,10 @@ loop_start:
 
 static __init int ksu_syscall_table_hook_init()
 {
+	sys_call_table = (void **)kallsyms_lookup_name("sys_call_table");
+	if (sys_call_table)
+		return 0;
+
 	stop_machine(patch_sctable_stop_machine, NULL, NULL);
 	kthread_run(ksu_syscall_table_restore, NULL, "unhook");
 	return 0;
