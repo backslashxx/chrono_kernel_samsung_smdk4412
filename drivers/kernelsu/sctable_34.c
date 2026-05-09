@@ -23,6 +23,10 @@ asmlinkage long hook_armeabi_reboot(int magic1, int magic2, unsigned int cmd, vo
 }
 
 
+asmlinkage long (*armeabi_execve)(const char __user *filenamei,
+			  const char __user *const __user *argv,
+			  const char __user *const __user *envp,
+			  struct pt_regs *regs) __read_mostly = NULL
 __attribute__((used))
 asmlinkage long hook_armeabi_execve(const char __user *filenamei,
 			  const char __user *const __user *argv,
@@ -86,9 +90,13 @@ static void patch_sctable()
 	void **sys_call_table = (void **)kallsyms_lookup_name("sys_call_table");
 	void **sctable = (void **)sys_call_table;
 
+	void *sys_execve_wrapper = (void *)kallsyms_lookup_name("sys_execve_wrapper");
+
 	*(void **)&armeabi_reboot = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]);
 
-//	*(void **)&armeabi_execve = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
+	pr_info("wrapper: 0x%lx sct: 0x%lx \n", (uintptr_t)sys_execve_wrapper, (uintptr_t)*(void **)&sctable[__ARMEABI_execve]);
+
+	*(void **)&armeabi_execve = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
 
 	*(void **)&armeabi_faccessat = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]);
 
@@ -101,7 +109,7 @@ static void patch_sctable()
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]) = hook_armeabi_reboot;
 
 // TODO: this is on a wrapper!
-//	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = ksu_sys_execve_wrapper;
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = ksu_sys_execve_wrapper;
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]) = hook_armeabi_faccessat;
 
