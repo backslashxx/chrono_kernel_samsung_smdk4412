@@ -25,13 +25,11 @@ asmlinkage long hook_armeabi_reboot(int magic1, int magic2, unsigned int cmd, vo
 
 asmlinkage long (*armeabi_execve)(const char __user *filenamei,
 			  const char __user *const __user *argv,
-			  const char __user *const __user *envp,
-			  struct pt_regs *regs) __read_mostly = NULL
+			  const char __user *const __user *envp, struct pt_regs *regs) __read_mostly = NULL;
 __attribute__((used))
 asmlinkage long hook_armeabi_execve(const char __user *filenamei,
 			  const char __user *const __user *argv,
-			  const char __user *const __user *envp,
-			  struct pt_regs *regs)
+			  const char __user *const __user *envp, struct pt_regs *regs)
 {
 	ksu_handle_execve(&filenamei, (void ***)&argv, (void ***)&envp);
 	return sys_execve(filenamei, argv, envp, regs);
@@ -50,7 +48,7 @@ __attribute__((used, naked))
 static noinline void ksu_sys_execve_wrapper()
 {
 	asm volatile(
-		"add r3, sp, #0\n"
+		"add r3, sp, #8\n"
 		"b   hook_armeabi_execve\n"
 	);
 }
@@ -108,22 +106,22 @@ static void patch_sctable()
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]) = hook_armeabi_reboot;
 
-// TODO: this is on a wrapper!
+	// NOTE: this is on a wrapper!
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = ksu_sys_execve_wrapper;
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]) = hook_armeabi_faccessat;
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstatat64]) = hook_armeabi_fstatat64;
 
-// TODO: handle oabi /eabi shift
-//	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstat64]) = hook_armeabi_fstat64_ret;
+	// TODO: handle oabi /eabi shift
+	// FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstat64]) = hook_armeabi_fstat64_ret;
 
 	preempt_enable();
 
 	flush_cache_all(); // this is important!
 	smp_mb();
 
-	return;
+	return 0;
 }
 
 static __init int ksu_syscall_table_hook_init()
