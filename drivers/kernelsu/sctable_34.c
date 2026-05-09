@@ -62,92 +62,45 @@ asmlinkage long hook_armeabi_read(unsigned int fd, char __user *buf, size_t coun
 	return armeabi_read(fd, buf, count);
 }
 
-// WARNING!!! void * abuse ahead! (type-punning, pointer-hiding!)
-// for 4.19+ old_ptr is actually syscall_fn_t *, which is just long * so we can consider this void **
-// for 4.19- old_ptr is actually void **
-// target_table is void *target_table[];
-static void read_and_replace_syscall(void *old_ptr, unsigned long syscall_nr, void *new_ptr, void *target_table)
+static void patch_sctable()
 {
-	void **sctable = (void **)target_table;
-	void **syscall_slot_addr = &sctable[syscall_nr];
+	void **sctable = (void **)kallsyms_lookup_name("sys_call_table");
 
-	if (!*syscall_slot_addr)
-		return;
+//	void **syscall_addr = (void **)&sctable[syscall_nr];
 
-	pr_info("%s: hooking syscall #%d at 0x%lx\n", __func__, syscall_nr, (long)syscall_slot_addr);
+	*(void **)&armeabi_reboot = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]);
 
-	/*
-	 * basically the trick is
-	 * addr, say 0xffff1234, this is READ-ONLY
-	 * align it, 0xffff0000
-	 * ptrdiff 0xffff1234 - 0xffff0000, 0x00001234
-	 * vmap 0xffff0000, say we get 0xcccc0000 , now WRITABLE
-	 * write on 0xcccc0000 + 0x00001234
-	 *
-	 */
+	*(void **)&armeabi_execve = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
 
-	// prep vmap alias
-	unsigned long addr = (unsigned long)syscall_slot_addr;
-	unsigned long base = addr & PAGE_MASK;
-	unsigned long offset = addr & ~PAGE_MASK; // offset_in_page
+	*(void **)&armeabi_faccessat = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
 
-	// this is impossible for our case because the page alignment
-	// but be careful for other cases!
-	// BUG_ON(offset + len > PAGE_SIZE);
-	if (offset + sizeof(void *) > PAGE_SIZE) {
-		pr_info("%s: syscall slot crosses page boundary! aborting.\n", __func__);
-		return;
-	}
+	*(void **)&armeabi_fstatat64 = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
 
-	// virtual mapping of a physical page 
-	struct page *page = phys_to_page(__pa(base));
-	if (!page)
-		return;
-
-	// create a "writabel address" which is mapped to teh same address
-	void *writable_addr = vmap(&page, 1, VM_MAP, PAGE_KERNEL);
-	if (!writable_addr)
-		return;
-
-	// swap on the alias
-	void **target_slot = (void **)((unsigned long)writable_addr + offset);
+	*(void **)&armeabi_fstat64 = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
 
 	preempt_disable();
-	local_irq_disable();
 
-	*(void **)old_ptr = *target_slot; 
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]) = hook_armeabi_reboot;
 
-	*target_slot = new_ptr;
-	smp_mb(); // ^^
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = hook_armeabi_execve;
 
-	local_irq_enable();
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]) = hook_armeabi_faccessat;
+
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstatat64]) = hook_armeabi_fstatat64;
+
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstat64]) = hook_armeabi_fstatat64;
+
 	preempt_enable();
 
-	vunmap(writable_addr);
+	flush_cache_all(); // this is important!
+	smp_mb();
 
-	smp_mb(); 
-}
-
-static void test_xd()
-{
-	unsigned long *sys_call_table = (unsigned long *)kallsyms_lookup_name("sys_call_table");
-
-	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)sys_call_table);
-	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)sys_call_table);
-	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)sys_call_table);
+	return;
 }
 
 static __init int ksu_syscall_table_hook_init()
 {
-	unsigned long *sys_call_table = (unsigned long *)kallsyms_lookup_name("sys_call_table");
-
-	read_and_replace_syscall((void *)&armeabi_reboot, __ARMEABI_reboot, (void *)hook_armeabi_reboot, (void *)sys_call_table);
-
-	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)sys_call_table);
-	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)sys_call_table);
-	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)sys_call_table);
-
-	read_and_replace_syscall((void *)&armeabi_fstat64, __ARMEABI_fstat64, (void *)hook_armeabi_fstat64_ret, (void *)sys_call_table);
+	patch_sctable();
 
 	return 0;
 }
