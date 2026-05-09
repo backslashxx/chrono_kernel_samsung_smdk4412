@@ -29,7 +29,7 @@ asmlinkage long hook_armeabi_execve(const char __user *filenamei,
 			  const char __user *const __user *envp,
 			  struct pt_regs *regs)
 {
-	// ksu_handle_execve(&filenamei, (void ***)&argv, (void ***)&envp);
+	ksu_handle_execve(&filenamei, (void ***)&argv, (void ***)&envp);
 	return sys_execve(filenamei, argv, envp, regs);
 }
 
@@ -83,7 +83,7 @@ asmlinkage long hook_armeabi_read(unsigned int fd, char __user *buf, size_t coun
 
 static void patch_sctable()
 {
-	extern void *sys_call_table;
+	void **sys_call_table = (void **)kallsyms_lookup_name("sys_call_table");
 	void **sctable = (void **)sys_call_table;
 
 	*(void **)&armeabi_reboot = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]);
@@ -100,7 +100,7 @@ static void patch_sctable()
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]) = hook_armeabi_reboot;
 
-//	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = ksu_sys_execve_wrapper;
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = ksu_sys_execve_wrapper;
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]) = hook_armeabi_faccessat;
 
