@@ -88,49 +88,23 @@ static void read_and_replace_syscall(void *old_ptr, unsigned long syscall_nr, vo
 
 	pr_info("%s: syscall: #%d slot: 0x%lx new_ptr: 0x%lx \n", __func__, syscall_nr, *(long *)syscall_addr, (long)new_ptr);
 
-	barrier();
 	*(void **)old_ptr = FORCE_VOLATILE(*syscall_addr);
 
-	barrier();
 	preempt_disable();
+	local_irq_disable();
+
 	FORCE_VOLATILE(*syscall_addr) = new_ptr;
+
+	local_irq_enable();
 	preempt_enable();
 
-	flush_cache_all();
+	flush_cache_all(); // this is important!
 	smp_mb();
 
 	return;
 }
 
-static int ksu_syscall_table_restore()
-{
-	set_user_nice(current, 19); // low prio
 
-loop_start:
-
-	msleep(1000);
-
-	if (*(volatile bool *)&ksu_vfs_read_hook)
-		goto loop_start;
-	
-	return 0;
-}
-
-static DEFINE_MUTEX(sucompat_toggle_mutex);
-
-#if 0
-static void syscall_table_sucompat_enable()
-{
-	mutex_lock(&sucompat_toggle_mutex);
-	mutex_unlock(&sucompat_toggle_mutex);
-}
-
-static void syscall_table_sucompat_disable()
-{
-	mutex_lock(&sucompat_toggle_mutex);
-	mutex_unlock(&sucompat_toggle_mutex);
-}
-#endif
 
 static __init int ksu_syscall_table_hook_init()
 {
@@ -138,11 +112,13 @@ static __init int ksu_syscall_table_hook_init()
 
 	read_and_replace_syscall((void *)&armeabi_reboot, __ARMEABI_reboot, (void *)hook_armeabi_reboot, (void *)sys_call_table);
 
-	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)compat_sys_call_table);
-	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)compat_sys_call_table);
-	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)compat_sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)sys_call_table);
 
-	kthread_run(ksu_syscall_table_restore, NULL, "unhook");
+	read_and_replace_syscall((void *)&armeabi_fstat64, __ARMEABI_fstat64, (void *)hook_armeabi_fstat64_ret, (void *)sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_read, __ARMEABI_read, (void *)hook_armeabi_read, (void *)sys_call_table);
+
 	return 0;
 }
 late_initcall(ksu_syscall_table_hook_init);
