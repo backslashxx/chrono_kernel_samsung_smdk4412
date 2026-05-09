@@ -4,7 +4,7 @@
 
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
-#include <asm/domain.h>
+#include <asm/ptrace.h>
 
 #define FORCE_VOLATILE(x) *(volatile typeof(x) *)&(x)
 
@@ -22,15 +22,32 @@ asmlinkage long hook_armeabi_reboot(int magic1, int magic2, unsigned int cmd, vo
 	return armeabi_reboot(magic1, magic2, cmd, arg);
 }
 
-asmlinkage long (*armeabi_execve)(const char __user * filename,
-				const char __user *const __user * argv,
-				const char __user *const __user * envp) __read_mostly = NULL;
-asmlinkage long hook_armeabi_execve(const char __user * filename,
-				const char __user *const __user * argv,
-				const char __user *const __user * envp)
+
+asmlinkage long hook_armeabi_execve(const char __user *filenamei,
+			  const char __user *const __user *argv,
+			  const char __user *const __user *envp,
+			  struct pt_regs *regs)
 {
-	ksu_handle_execve(&filename, (void ***)&argv, (void ***)&envp);
-	return armeabi_execve(filename, argv, envp);
+	ksu_handle_execve(&filenamei, (void ***)&argv, (void ***)&envp);
+	return sys_execve(filenamei, argv, envp, regs);
+}
+
+/* // arch/arm/kernel/entry-common.S
+ *
+ * sys_execve_wrapper:
+ *		add	r3, sp, #S_OFF
+ *		b	sys_execve
+ * ENDPROC(sys_execve_wrapper)
+ *
+ */
+#define S_OFF "8"
+__attribute__((used, naked))
+static noinline void ksu_sys_execve_wrapper()
+{
+	asm volatile(
+		"add r3, sp, #" S_OFF "\n"
+		"b   hook_armeabi_execve\n"
+	);
 }
 
 asmlinkage long (*armeabi_faccessat)(int dfd, const char __user * filename, int mode) __read_mostly = NULL;
@@ -65,11 +82,12 @@ asmlinkage long hook_armeabi_read(unsigned int fd, char __user *buf, size_t coun
 
 static void patch_sctable()
 {
-	void **sctable = (void **)kallsyms_lookup_name("sys_call_table");
+	extern void *sys_call_table;
+	void **sctable = (void **)sys_call_table;
 
 	*(void **)&armeabi_reboot = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]);
 
-	*(void **)&armeabi_execve = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
+//	*(void **)&armeabi_execve = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
 
 	*(void **)&armeabi_faccessat = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]);
 
@@ -81,7 +99,7 @@ static void patch_sctable()
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]) = hook_armeabi_reboot;
 
-//	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = hook_armeabi_execve;
+	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = ksu_sys_execve_wrapper;
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]) = hook_armeabi_faccessat;
 
