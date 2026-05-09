@@ -128,6 +128,13 @@ static void read_and_replace_syscall(void *old_ptr, unsigned long syscall_nr, vo
 	smp_mb(); 
 }
 
+static void test_xd()
+{
+	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)sys_call_table);
+}
+
 static __init int ksu_syscall_table_hook_init()
 {
 	// stop_machine(patch_sctable_stop_machine, NULL, NULL);
