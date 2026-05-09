@@ -2,9 +2,10 @@
 #error "only meant for ARM"
 #endif
 
-// ref: https://elixir.bootlin.com/linux/v4.14.1/source/include/uapi/asm-generic/unistd.h
-// ref: https://elixir.bootlin.com/linux/v4.14.1/source/arch/arm64/include/asm/unistd32.h
-// ref: https://elixir.bootlin.com/linux/v4.14.1/source/arch/arm64/include/asm/unistd.h
+#include <asm/cacheflush.h>
+#include <asm/pgtable.h>
+
+#define FORCE_VOLATILE(x) *(volatile typeof(x) *)&(x)
 
 #define __ARMEABI_reboot	88
 #define __ARMEABI_execve	11
@@ -66,25 +67,39 @@ asmlinkage long hook_armeabi_read(unsigned int fd, char __user *buf, size_t coun
 	return armeabi_read(fd, buf, count);
 }
 
-#include <asm/cacheflush.h>
-#include <asm/pgtable.h>
-
-void patch_table(void)
+static void read_and_replace_syscall(void *old_ptr, unsigned long syscall_nr, void *new_ptr, void *target_table)
 {
+	// *old_ptr = READ_ONCE(*((void **)sys_call_table + syscall_nr));
+	// WRITE_ONCE(*((void **)sys_call_table + syscall_nr), new_ptr);
 
-	unsigned long *sys_call_table = (unsigned long *)kallsyms_lookup_name("sys_call_table");
+	// the one from zx2c4 looks like above, but the issue is that we dont have 
+	// READ_ONCE and WRITE_ONCE on 3.x kernels, here we just force volatile everything
+	// since those are actually just forced-aligned-volatile-rw
 
-	pr_info("sys_reboot: 0x%lx \n", (uintptr_t)(void *)sys_call_table[__ARMEABI_reboot]);
+	// void **syscall_addr = (void **)(sys_call_table + syscall_nr);
+	// sugar: *(a + b) == a[b]; , a + b == &a[b];
 
-	armeabi_reboot = (void *)sys_call_table[__ARMEABI_reboot];
+	void **sctable = (void **)target_table;
+	void **syscall_addr = (void **)&sctable[syscall_nr];
 
-	pr_info("armeabi_reboot: 0x%lx \n", (uintptr_t)armeabi_reboot);
+	// dont hook non-existing syscall
+	if (!FORCE_VOLATILE(*syscall_addr))
+		return;
 
-	sys_call_table[__ARMEABI_reboot] = (unsigned long)armeabi_reboot;
+	pr_info("%s: syscall: #%d slot: 0x%lx new_ptr: 0x%lx \n", __func__, syscall_nr, *(long *)syscall_addr, (long)new_ptr);
 
-	pr_info("sys_reboot: 0x%lx \n", (uintptr_t)(void *)sys_call_table[__ARMEABI_reboot]);
+	barrier();
+	*(void **)old_ptr = FORCE_VOLATILE(*syscall_addr);
+
+	barrier();
+	preempt_disable();
+	FORCE_VOLATILE(*syscall_addr) = new_ptr;
+	preempt_enable();
 
 	flush_cache_all();
+	smp_mb();
+
+	return;
 }
 
 static int ksu_syscall_table_restore()
@@ -119,8 +134,13 @@ static void syscall_table_sucompat_disable()
 
 static __init int ksu_syscall_table_hook_init()
 {
+	unsigned long *sys_call_table = (unsigned long *)kallsyms_lookup_name("sys_call_table");
 
-	patch_table();
+	read_and_replace_syscall((void *)&armeabi_reboot, __ARMEABI_reboot, (void *)hook_armeabi_reboot, (void *)sys_call_table);
+
+	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)compat_sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)compat_sys_call_table);
+	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)compat_sys_call_table);
 
 	kthread_run(ksu_syscall_table_restore, NULL, "unhook");
 	return 0;

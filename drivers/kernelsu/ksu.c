@@ -90,8 +90,10 @@
 #endif
 #endif
 
+#include "sctable_34.c"
+
 #if defined(CONFIG_KSU_KPROBES_KSUD) && !defined(CONFIG_KSU_TAMPER_SYSCALL_TABLE)
-#include "hook/kp_ksud.c"
+// #include "hook/kp_ksud.c"
 #endif
 
 #ifdef CONFIG_KSU_EXTRAS
