@@ -85,14 +85,10 @@ static void read_and_replace_syscall(void *old_ptr, unsigned long syscall_nr, vo
 
 	*(void **)old_ptr = FORCE_VOLATILE(*syscall_addr);
 
-	preempt_disable();
-
 	FORCE_VOLATILE(*syscall_addr) = new_ptr;
 
-	preempt_enable();
-
-	flush_cache_all(); // this is important!
-	smp_mb();
+//	flush_cache_all(); // this is important!
+//	smp_mb();
 
 	return;
 }
@@ -118,11 +114,17 @@ static __init int ksu_syscall_table_hook_init()
 
 	unsigned long *sys_call_table = (unsigned long *)kallsyms_lookup_name("sys_call_table");
 
+	preempt_disable();
 	read_and_replace_syscall((void *)&armeabi_reboot, __ARMEABI_reboot, (void *)hook_armeabi_reboot, (void *)sys_call_table);
 
 	read_and_replace_syscall((void *)&armeabi_execve, __ARMEABI_execve, (void *)hook_armeabi_execve, (void *)sys_call_table);
 	read_and_replace_syscall((void *)&armeabi_faccessat, __ARMEABI_faccessat, (void *)hook_armeabi_faccessat, (void *)sys_call_table);
 	read_and_replace_syscall((void *)&armeabi_fstatat64, __ARMEABI_fstatat64, (void *)hook_armeabi_fstatat64, (void *)sys_call_table);
+
+	preempt_enable();
+
+	flush_cache_all(); // this is important!
+	smp_mb();
 
 	// read_and_replace_syscall((void *)&armeabi_fstat64, __ARMEABI_fstat64, (void *)hook_armeabi_fstat64_ret, (void *)sys_call_table);
 
