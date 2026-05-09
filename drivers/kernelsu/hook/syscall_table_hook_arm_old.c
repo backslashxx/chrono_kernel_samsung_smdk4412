@@ -48,7 +48,7 @@ asmlinkage long hook_armeabi_execve(const char __user *filenamei,
  * ENDPROC(sys_execve_wrapper)
  *
  */
-#define S_OFF "8:
+#define S_OFF "8"
 __attribute__((used, naked))
 static noinline void ksu_sys_execve_wrapper()
 {
