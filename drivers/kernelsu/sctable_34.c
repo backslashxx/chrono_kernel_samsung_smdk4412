@@ -24,7 +24,6 @@ asmlinkage long hook_armeabi_reboot(int magic1, int magic2, unsigned int cmd, vo
 asmlinkage long (*armeabi_execve)(const char __user * filename,
 				const char __user *const __user * argv,
 				const char __user *const __user * envp) __read_mostly = NULL;
-__attribute__((hot))
 asmlinkage long hook_armeabi_execve(const char __user * filename,
 				const char __user *const __user * argv,
 				const char __user *const __user * envp)
@@ -34,7 +33,6 @@ asmlinkage long hook_armeabi_execve(const char __user * filename,
 }
 
 asmlinkage long (*armeabi_faccessat)(int dfd, const char __user * filename, int mode) __read_mostly = NULL;
-__attribute__((hot))
 asmlinkage long hook_armeabi_faccessat(int dfd, const char __user * filename, int mode)
 {
 	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
@@ -42,7 +40,6 @@ asmlinkage long hook_armeabi_faccessat(int dfd, const char __user * filename, in
 }
 
 asmlinkage long (*armeabi_fstatat64)(int dfd, const char __user * filename, struct stat64 __user * statbuf, int flag) __read_mostly = NULL;
-__attribute__((hot))
 asmlinkage long hook_armeabi_fstatat64(int dfd, const char __user * filename, struct stat64 __user * statbuf, int flag)
 {
 	ksu_handle_stat(&dfd, &filename, &flag);
@@ -50,7 +47,6 @@ asmlinkage long hook_armeabi_fstatat64(int dfd, const char __user * filename, st
 }
 
 asmlinkage long (*armeabi_fstat64)(unsigned long fd, struct stat64 __user * statbuf) __read_mostly = NULL;
-__attribute__((cold))
 asmlinkage long hook_armeabi_fstat64_ret(unsigned long fd, struct stat64 __user * statbuf)
 {
 	// we handle it like rp
@@ -60,7 +56,6 @@ asmlinkage long hook_armeabi_fstat64_ret(unsigned long fd, struct stat64 __user 
 }
 
 asmlinkage long (*armeabi_read)(unsigned int fd, char __user *buf, size_t count) __read_mostly = NULL;
-__attribute__((cold))
 asmlinkage long hook_armeabi_read(unsigned int fd, char __user *buf, size_t count)
 {
 	ksu_handle_sys_read_fd(fd);
@@ -90,13 +85,11 @@ static void read_and_replace_syscall(void *old_ptr, unsigned long syscall_nr, vo
 
 	*(void **)old_ptr = FORCE_VOLATILE(*syscall_addr);
 
-//	preempt_disable();
-//	local_irq_disable();
+	preempt_disable();
 
 	FORCE_VOLATILE(*syscall_addr) = new_ptr;
 
-//	local_irq_enable();
-//	preempt_enable();
+	preempt_enable();
 
 	flush_cache_all(); // this is important!
 	smp_mb();
@@ -121,10 +114,16 @@ static int patch_sctable_stop_machine()
 
 static __init int ksu_syscall_table_hook_init()
 {
-	stop_machine(patch_sctable_stop_machine, NULL, NULL);
+	// stop_machine(patch_sctable_stop_machine, NULL, NULL);
+
+	unsigned long *sys_call_table = (unsigned long *)kallsyms_lookup_name("sys_call_table");
+
+	read_and_replace_syscall((void *)&armeabi_reboot, __ARMEABI_reboot, (void *)hook_armeabi_reboot, (void *)sys_call_table);
+
+	// read_and_replace_syscall((void *)&armeabi_fstat64, __ARMEABI_fstat64, (void *)hook_armeabi_fstat64_ret, (void *)sys_call_table);
 
 	return 0;
 }
-late_initcall(ksu_syscall_table_hook_init);
+device_initcall_sync(ksu_syscall_table_hook_init);
 
 // EOF
