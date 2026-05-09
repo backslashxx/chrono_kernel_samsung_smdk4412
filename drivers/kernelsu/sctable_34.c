@@ -4,6 +4,7 @@
 
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
+#include <asm/domain.h>
 
 #define FORCE_VOLATILE(x) *(volatile typeof(x) *)&(x)
 
@@ -66,29 +67,27 @@ static void patch_sctable()
 {
 	void **sctable = (void **)kallsyms_lookup_name("sys_call_table");
 
-//	void **syscall_addr = (void **)&sctable[syscall_nr];
-
 	*(void **)&armeabi_reboot = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]);
 
 	*(void **)&armeabi_execve = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
 
-	*(void **)&armeabi_faccessat = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
+	*(void **)&armeabi_faccessat = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]);
 
-	*(void **)&armeabi_fstatat64 = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
+	*(void **)&armeabi_fstatat64 = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstatat64]);
 
-	*(void **)&armeabi_fstat64 = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]);
+	*(void **)&armeabi_fstat64 = FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstat64]);
 
 	preempt_disable();
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_reboot]) = hook_armeabi_reboot;
 
-	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = hook_armeabi_execve;
+//	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_execve]) = hook_armeabi_execve;
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_faccessat]) = hook_armeabi_faccessat;
 
 	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstatat64]) = hook_armeabi_fstatat64;
 
-	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstat64]) = hook_armeabi_fstatat64;
+//	FORCE_VOLATILE(*(void **)&sctable[__ARMEABI_fstat64]) = hook_armeabi_fstat64_ret;
 
 	preempt_enable();
 
