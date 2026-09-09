@@ -411,8 +411,12 @@ static inline void kfree_byref(void *buf) { kfree(*(void **)buf); }
 
 #ifdef __RAW_SPIN_LOCK_UNLOCKED
 	#undef __RAW_SPIN_LOCK_UNLOCKED
-	#define __RAW_SPIN_LOCK_UNLOCKED(lockname) (typeof(*lockname)) __RAW_SPIN_LOCK_INITIALIZER((lockname))
+	#define __RAW_SPIN_LOCK_UNLOCKED(lockname) __RAW_SPIN_LOCK_INITIALIZER((lockname))
 #endif
+
+#undef raw_spin_lock_init
+#define raw_spin_lock_init(lock) do { memset_explicit((lock), 0, sizeof(*(lock))); } while (0)
+
 #endif
 
 /**
